@@ -12,7 +12,11 @@ public:
     bool CanTerminate() override;
     void Terminate() override;
     
+    [[nodiscard]] bool HasSettings() const override { return true; }
+    void DrawSettings() override;
+
 private:
-    std::ofstream out_file;
+    std::filesystem::path data_file_path;
     
+    void WriteToFile() const;
 };

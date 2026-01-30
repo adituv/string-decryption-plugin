@@ -26,7 +26,7 @@ namespace
         
         wchar_t* result = get_security_field_ret(data, term, string_id, out_security);
         
-        if (out_security != nullptr && *out_security != 0)
+        if (out_security != nullptr)
         {
             logged_security_fields.insert_or_assign(string_id, *out_security);
         }
@@ -97,9 +97,7 @@ DLLAPI ToolboxPlugin* ToolboxPluginInstance()
 
 StringDecryptionPlugin::StringDecryptionPlugin()
 {
-    std::filesystem::path output_path = get_output_folder_path() / "string_decryption.csv";
-    this->out_file = std::ofstream(output_path, std::ofstream::out | std::ofstream::trunc);
-    this->out_file << std::hex << std::setfill('0');
+    data_file_path = get_output_folder_path() / "string_decryption.csv";
 }
 
 void StringDecryptionPlugin::Initialize(ImGuiContext* ctx, ImGuiAllocFns fns, HMODULE toolbox_dll)
@@ -119,18 +117,32 @@ void StringDecryptionPlugin::Initialize(ImGuiContext* ctx, ImGuiAllocFns fns, HM
     GW::Hook::CreateHook(reinterpret_cast<void**>(&get_security_field_func),on_get_security_field,
                          reinterpret_cast<void**>(&get_security_field_ret));
     GW::Hook::EnableHooks(get_security_field_func);
+
+    std::ifstream data_file(data_file_path);
+    std::string line;
+    // Skip CSV header
+    std::getline(data_file, line);
+
+    while (std::getline(data_file, line)) {
+        size_t comma_pos = line.find(',');
+        if (comma_pos == std::string::npos)
+        {
+            // Invalid data; stop loading
+            break;
+        }
+
+        uint32_t string_id = std::stoi(line.substr(0, comma_pos), nullptr, 16);
+        uint64_t security = std::stoll(line.substr(comma_pos + 1), nullptr, 16);
+
+        logged_security_fields.insert_or_assign(string_id, security);
+    }
 }
 
 void StringDecryptionPlugin::SignalTerminate()
 {
     GW::Hook::DisableHooks(get_security_field_func);
-    
-    std::println(this->out_file, "string id,security");
-    
-    for (const auto& entry : logged_security_fields)
-    {
-        std::println(this->out_file, "{:x},{:x}", entry.first, entry.second);
-    }
+
+    this->WriteToFile();
     
     ToolboxPlugin::SignalTerminate();
 }
@@ -144,4 +156,29 @@ void StringDecryptionPlugin::Terminate()
 {
     GW::Hook::RemoveHook(get_security_field_func);
     ToolboxPlugin::Terminate();
+}
+
+void StringDecryptionPlugin::DrawSettings()
+{
+    ImGui::Text("Cached strings: %d", logged_security_fields.size());
+    if (ImGui::Button("Save now"))
+    {
+        this->WriteToFile();
+    }
+}
+
+void StringDecryptionPlugin::WriteToFile() const
+{
+    std::ofstream data_file(this->data_file_path, std::ofstream::trunc);
+
+    // TODO: write error to chat on failing to save
+    
+    std::println(data_file, "string id,security");
+
+    for (const auto& entry : logged_security_fields)
+    {
+        std::println(data_file, "\"{:x}\",\"{:x}\"", entry.first, entry.second);
+    }
+
+    data_file.flush();
 }
