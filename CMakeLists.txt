@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_GENERATOR_PLATFORM win32)
 
-project(my_tb_plugin)
+project(string_decryption_plugin)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 if(NOT(CMAKE_SIZEOF_VOID_P EQUAL 4))
@@ -29,7 +29,7 @@ find_package(directxtex CONFIG REQUIRED)
 add_compile_definitions(WOLFSSL_NO_OPTIONS_H)
 include(gwtoolboxpp)
 
-add_library(my_tb_plugin SHARED)
+add_library(string_decryption_plugin SHARED)
 
 file(GLOB SOURCES
 	"src/*.h"
@@ -38,13 +38,13 @@ file(GLOB SOURCES
 	${gwtoolboxpp_SOURCE_DIR}/plugins/Base/*.cpp
 	)
 
-target_include_directories(my_tb_plugin PRIVATE
+target_include_directories(string_decryption_plugin PRIVATE
 	${gwtoolboxpp_SOURCE_DIR}/plugins/Base
 	${gwtoolboxpp_SOURCE_DIR}/GWToolboxdll
 	${gwtoolboxpp_SOURCE_DIR}/Dependencies/GWCA/include
 	${SIMPLEINI_INCLUDE_DIRS}
 	)
-target_link_libraries(my_tb_plugin PRIVATE
+target_link_libraries(string_decryption_plugin PRIVATE
 	RestClient
 	imgui
 	directxtex
@@ -59,16 +59,16 @@ target_link_libraries(my_tb_plugin PRIVATE
 	nativefiledialog
 	wintoast
 	)
-target_link_options(my_tb_plugin PRIVATE
+target_link_options(string_decryption_plugin PRIVATE
 	"$<$<CONFIG:DEBUG>:/NODEFAULTLIB:LIBCMT>"
 	)
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${SOURCES})
-target_sources(my_tb_plugin PRIVATE ${SOURCES})
-target_compile_definitions(my_tb_plugin PRIVATE
+target_sources(string_decryption_plugin PRIVATE ${SOURCES})
+target_compile_definitions(string_decryption_plugin PRIVATE
 	"NOMINMAX"
 	"_WIN32_WINNT=_WIN32_WINNT_WIN7"
 	"WIN32_LEAN_AND_MEAN"
 	"VC_EXTRALEAN"
 	"BUILD_DLL"
 	)
-set_target_properties(my_tb_plugin PROPERTIES DEBUG_POSTFIX "d")
+set_target_properties(string_decryption_plugin PROPERTIES DEBUG_POSTFIX "d")
