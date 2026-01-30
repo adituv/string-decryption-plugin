@@ -3,8 +3,8 @@
 #include <atomic>
 #include <fstream>
 #include <print>
-#include <regex>
 
+#include <ctre.hpp>
 #include <GWCA/Utilities/Hooker.h>
 #include <GWCA/Utilities/Scanner.h>
 #include <Path.h>
@@ -37,23 +37,21 @@ namespace
     
     std::pair<std::string, std::string> process_sigga_pattern(std::string_view sigga_pattern)
     {
-        using std::operator""sv;
-        
-        std::regex byte_regex("[0-9a-fA-F]{1,2}");
-        std::regex wild_regex("\\?+");
+        static constexpr ctll::fixed_string byte_regex = "[0-9a-fA-F]{2}";
+        static constexpr ctll::fixed_string wild_regex = "\\?+";
         
         std::string pattern;
         std::string mask;
         
         for (const auto byte : std::ranges::split_view(sigga_pattern, ' '))
         {
-            if (std::regex_match(byte.begin(), byte.end(), byte_regex))
+            if (ctre::match<byte_regex>(byte))
             {
                 unsigned int byte_value = std::stoi(std::string(byte.begin(), byte.end()), nullptr, 16);
                 pattern.push_back(byte_value);
                 mask.push_back('x');
             }
-            else if (std::regex_match(byte.begin(), byte.end(), wild_regex))
+            else if (ctre::match<wild_regex>(byte))
             {
                 pattern.push_back('\0');
                 mask.push_back('?');
