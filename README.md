@@ -1,4 +1,3 @@
-# GWToolbox++ Plugin Template
+# String Decryption Plugin
 
-Plugin template updated for Toolbox 8.8.  Based on Henderkes's plugins repo
-found at <https://github.com/henderkes/ToolboxPlugins>
+GWToolbox++ plugin to log string decryption keys to file
