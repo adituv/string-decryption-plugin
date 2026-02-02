@@ -1,13 +1,13 @@
 #include "StringDecryptionPlugin.h"
 
+#include <ctre.hpp>
+#include <GWCA/Utilities/Scanner.h>
+#include <MinHook.h>
+#include <Path.h>
+
 #include <atomic>
 #include <fstream>
 #include <print>
-
-#include <ctre.hpp>
-#include <GWCA/Utilities/Hooker.h>
-#include <GWCA/Utilities/Scanner.h>
-#include <Path.h>
 
 namespace
 {
@@ -150,19 +150,20 @@ void StringDecryptionPlugin::Initialize(ImGuiContext* ctx, ImGuiAllocFns fns, HM
     const char* mask = tmp.second.c_str();
 
     get_security_field_func = reinterpret_cast<GetSecurityFieldFunc>(GW::Scanner::Find(pattern, mask, 0)); // NOLINT(performance-no-int-to-ptr)
-    GW::Hook::CreateHook(reinterpret_cast<void**>(&get_security_field_func),on_get_security_field,
-                         reinterpret_cast<void**>(&get_security_field_ret));
-    GW::Hook::EnableHooks(get_security_field_func);
+    
+    if (MH_Initialize() == MH_OK)
+    {
+        MH_CreateHook(get_security_field_func, on_get_security_field, reinterpret_cast<void**>(&get_security_field_ret));
+        MH_EnableHook(get_security_field_func);
+    }
 
     load_from_file(this->data_file_path);
 }
 
 void StringDecryptionPlugin::SignalTerminate()
 {
-    GW::Hook::DisableHooks(get_security_field_func);
-
+    MH_DisableHook(get_security_field_func);
     write_to_file(this->data_file_path);
-
     ToolboxPlugin::SignalTerminate();
 }
 
@@ -173,7 +174,7 @@ bool StringDecryptionPlugin::CanTerminate()
 
 void StringDecryptionPlugin::Terminate()
 {
-    GW::Hook::RemoveHook(get_security_field_func);
+    MH_RemoveHook(get_security_field_func);
     ToolboxPlugin::Terminate();
 }
 
