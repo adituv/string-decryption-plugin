@@ -1,7 +1,7 @@
 include_guard()
 include(FetchContent)
 
-# Fetch gwtooolboxpp using FetchContent
+# Fetch gwtoolboxpp using FetchContent
 FetchContent_Declare(
   gwtoolboxpp
   GIT_REPOSITORY https://github.com/gwdevhub/gwtoolboxpp

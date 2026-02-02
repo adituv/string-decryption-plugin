@@ -28,6 +28,7 @@ find_package(directxtex CONFIG REQUIRED)
 
 add_compile_definitions(WOLFSSL_NO_OPTIONS_H)
 include(gwtoolboxpp)
+include(plugin_utils)
 
 add_library(string_decryption_plugin SHARED)
 
@@ -58,6 +59,7 @@ target_link_libraries(string_decryption_plugin PRIVATE
 	IconFontCppHeaders
 	nativefiledialog
 	wintoast
+	tb_plugin_utils
 	)
 target_link_options(string_decryption_plugin PRIVATE
 	"$<$<CONFIG:DEBUG>:/NODEFAULTLIB:LIBCMT>"

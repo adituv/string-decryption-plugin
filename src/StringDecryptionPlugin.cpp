@@ -1,13 +1,15 @@
 #include "StringDecryptionPlugin.h"
 
 #include <ctre.hpp>
-#include <GWCA/Utilities/Scanner.h>
 #include <MinHook.h>
 #include <Path.h>
+#include <PluginUtils/PluginUtils.h>
 
 #include <atomic>
 #include <fstream>
 #include <print>
+
+using namespace PluginUtils;
 
 namespace
 {
@@ -34,66 +36,20 @@ namespace
         --in_hook_count;
         return result;        
     }
-
-    std::pair<std::string, std::string> process_sigga_pattern(std::string_view sigga_pattern)
-    {
-        static constexpr ctll::fixed_string byte_regex = "[0-9a-fA-F]{2}";
-        static constexpr ctll::fixed_string wild_regex = "\\?+";
-
-        std::string pattern;
-        std::string mask;
-
-        for (const auto byte : std::ranges::split_view(sigga_pattern, ' '))
-        {
-            if (ctre::match<byte_regex>(byte))
-            {
-                unsigned int byte_value = std::stoi(std::string(byte.begin(), byte.end()), nullptr, 16);
-                pattern.push_back(byte_value);
-                mask.push_back('x');
-            }
-            else if (ctre::match<wild_regex>(byte))
-            {
-                pattern.push_back('\0');
-                mask.push_back('?');
-            }
-            else
-            {
-                throw std::invalid_argument("Invalid sigga pattern");
-            }
-        }
-
-        return std::make_pair(pattern, mask);
-    }
-
-    std::filesystem::path get_output_folder_path()
-    {
-        std::filesystem::path computer_name;
-        if (!PathGetComputerName(computer_name))
-        {
-            return "";
-        }
-
-        std::filesystem::path docpath;
-        if (!PathGetDocumentsPath(docpath, L"GWToolboxpp"))
-        {
-            return "";
-        }
-        docpath = docpath / computer_name / "plugin_output";
-
-        if (!PathCreateDirectorySafe(docpath))
-        {
-            return "";
-        }
-
-        return docpath;
-    }
-
+    
     void load_from_file(const std::filesystem::path& data_file_path)
     {
         static constexpr ctll::fixed_string line_regex("^\"([0-9a-fA-F]+)\",\"([0-9a-fA-F]+)\"$");
 
-        std::ifstream data_file(data_file_path);
-        std::string line;
+        std::wifstream data_file(data_file_path);
+        
+        if (!data_file.good())
+        {
+            Logging::Error(L"Failed to load decrypted string data");
+            return;
+        }
+        
+        std::wstring line;
         // Skip CSV header
         std::getline(data_file, line);
 
@@ -105,6 +61,9 @@ namespace
 
                 logged_security_fields.insert_or_assign(string_id, security);
             }
+            else if (!line.empty()) {
+                Logging::Warning(std::format(L"Failed to parse data file line \"{}\"", line));
+            }
         }
     }
 
@@ -112,7 +71,11 @@ namespace
     {
         std::ofstream data_file(data_file_path, std::ofstream::trunc);
 
-        // TODO: write error to chat on failing to save
+        if (!data_file.good())
+        {
+            PluginUtils::GameChat::WriteMessage(L"Failed to save decrypted string data", PluginUtils::GameChat::COLOR_ERROR);
+            return;
+        }
 
         std::println(data_file, "string id,security");
 
@@ -133,28 +96,46 @@ DLLAPI ToolboxPlugin* ToolboxPluginInstance()
 
 StringDecryptionPlugin::StringDecryptionPlugin()
 {
-    data_file_path = get_output_folder_path() / "string_decryption.csv";
+    data_file_path = Environment::GetToolboxSettingsPath() / "plugin_output" / "string_decryption.csv";
 }
 
 void StringDecryptionPlugin::Initialize(ImGuiContext* ctx, ImGuiAllocFns fns, HMODULE toolbox_dll)
 {
     ToolboxPlugin::Initialize(ctx, fns, toolbox_dll);
 
+    GameChat::SetPrefix(L"StringDecrypt");
+    Logging::ConfigureChatLogging(Logging::LEVEL_WARNING);
+#if _DEBUG
+    Logging::ConfigureStdioLogging(Logging::LEVEL_DEBUG);
+#else
+    Logging::ConfigureStdioLogging(Logging::LEVEL_INFO);
+#endif
+    Logging::ConfigureFileLogging(
+        Environment::GetToolboxSettingsPath() / "plugin_output" / "string_decryption.log",
+        Logging::LEVEL_INFO
+        );
+    
     constexpr char sigga_pattern[] =
         "55 8B EC 53 56 57 E8 ? ? ? ? 8B 70 18 83 7E 20 00 74 ? 6A 22 BA ? ? ? ? B9 ? ? ? ? E8 ? ? ? ? 83 7E 24 00 74 "
         "? 6A 23 BA ? ? ? ? B9 ? ? ? ? E8 ? ? ? ? 8B 7D 08 85 FF 75 ? 6A 24 BA ? ? ? ? B9 ? ? ? ? E8 ? ? ? ? 8B 5D 0C "
         "85 DB 75 ? 6A 25 BA ? ? ? ? B9 ? ? ? ? E8 ? ? ? ? FF 75 14";
 
-    std::pair<std::string, std::string> tmp = process_sigga_pattern(sigga_pattern);
-    const char* pattern = tmp.first.c_str();
-    const char* mask = tmp.second.c_str();
-
-    get_security_field_func = reinterpret_cast<GetSecurityFieldFunc>(GW::Scanner::Find(pattern, mask, 0)); // NOLINT(performance-no-int-to-ptr)
+    get_security_field_func = reinterpret_cast<GetSecurityFieldFunc>(SiggaScan(sigga_pattern));
     
+    if (get_security_field_func == nullptr)
+    {
+        Logging::Error(L"Scan for get_security_field failed");
+    }
+    
+    // Using MinHook directly so logging works even while TB is disabled
     if (MH_Initialize() == MH_OK)
     {
         MH_CreateHook(get_security_field_func, on_get_security_field, reinterpret_cast<void**>(&get_security_field_ret));
         MH_EnableHook(get_security_field_func);
+    }
+    else
+    {
+        Logging::Error(L"Failed to initialize MinHook");
     }
 
     load_from_file(this->data_file_path);
@@ -175,6 +156,7 @@ bool StringDecryptionPlugin::CanTerminate()
 void StringDecryptionPlugin::Terminate()
 {
     MH_RemoveHook(get_security_field_func);
+    MH_Uninitialize();
     ToolboxPlugin::Terminate();
 }
 
