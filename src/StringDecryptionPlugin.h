@@ -17,6 +17,4 @@ public:
 
 private:
     std::filesystem::path data_file_path;
-    
-    void WriteToFile() const;
 };
