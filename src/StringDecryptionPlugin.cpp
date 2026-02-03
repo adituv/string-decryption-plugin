@@ -76,7 +76,10 @@ namespace
             PluginUtils::GameChat::WriteMessage(L"Failed to save decrypted string data", PluginUtils::GameChat::COLOR_ERROR);
             return;
         }
-
+        
+        // Load from file first so that multiple clients can merge data together
+        load_from_file(data_file_path);
+        
         std::println(data_file, "string id,security");
 
         for (const auto& entry : logged_security_fields)
@@ -96,7 +99,9 @@ DLLAPI ToolboxPlugin* ToolboxPluginInstance()
 
 StringDecryptionPlugin::StringDecryptionPlugin()
 {
-    data_file_path = Environment::GetToolboxSettingsPath() / "plugin_output" / "string_decryption.csv";
+    std::filesystem::path plugin_output_path = Environment::GetToolboxSettingsPath() / "plugin_output";
+    PathCreateDirectorySafe(plugin_output_path);
+    data_file_path = plugin_output_path / "string_decryption.csv";
 }
 
 void StringDecryptionPlugin::Initialize(ImGuiContext* ctx, ImGuiAllocFns fns, HMODULE toolbox_dll)
